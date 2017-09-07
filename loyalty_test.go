@@ -10,6 +10,7 @@ import (
 	"github.com/loyalty/chaincode/testdata"
 	"testing"
 	"fmt"
+	"strconv"
 )
 
 var settings = Settings{
@@ -64,6 +65,17 @@ func provideAsset(t *testing.T, stub *mock.FullMockStub, body string)  {
 	}
 
 }
+
+func transferUserToUser(t *testing.T, stub *mock.FullMockStub, receiver string, value int)  {
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("transfer", `{"receiver":"` + receiver + `", "value":` + strconv.Itoa(value ) + `}`))
+
+	if res.Status != shim.OK {
+		t.Errorf("Failed to transfer: %s", res.Message)
+		t.FailNow()
+	}
+
+}
+
 
 func getMyCustomerList(t *testing.T, stub *mock.FullMockStub) []User {
 	res := stub.MockInvoke("1", util.ToChaincodeArgs("getMyCustomerList"))
@@ -154,6 +166,31 @@ func TestProvideAsset(t *testing.T) {
 		t.Errorf("Expected customer balance 1000 but got %d", users[0].Balance)
 		t.FailNow()
 	}
+}
+
+func TestTransferUserToUserAsset(t *testing.T) {
+	fmt.Printf("------------------------------------------------------\n")
+	stub := initToken(t)
+	stub.MockCreator("default", testdata.TestUser1Cert)
+	stub.MockCreator("default", testdata.TestUser2Cert)
+	createActors(t, stub, `[{"role": "bank", "name": "testUser"}, {"role": "customer", "name": "testUser"}, {"role": "customer", "name": "testUser2"}]`)
+	provideAsset(t, stub, `{"receiver": "testUser", "value": 1000}`)
+	provideAsset(t, stub, `{"receiver": "testUser1", "value": 111}`)
+
+	for key, val := range stub.State {
+		fmt.Printf("%s->%s\n",key, val)
+	}
+
+	transferUserToUser(t, stub, "testUser1", 500)
+
+	fmt.Printf("------------------------------------------------------\n")
+
+	for key, val := range stub.State {
+		fmt.Printf("%s->%s\n",key, val)
+	}
+
+	fmt.Printf("------------------------------------------------------\n")
+	transferUserToUser(t, stub, "testUser1", 500)
 
 	for key, val := range stub.State {
 		fmt.Printf("%s->%s\n",key, val)

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
-	"strconv"
 )
 
 func (t *LoyaltyChaincode) userBalanceAsJson(stub shim.ChaincodeStubInterface, args []string) pb.Response {
@@ -189,7 +188,7 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 			return err
 		}
 
-		if asset.Value < restSum {
+		if asset.Value <= restSum {
 			asset.History = append(asset.History, fromCn)
 			_, err = t.createAsset(stub, IndexCustomerAsset, toCn, fromCn, asset.History, asset.Value)
 			if err != nil {
@@ -211,9 +210,10 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 				return errors.New("Error creating Asset for '" + toCn + "':" + err.Error())
 			}
 			restSum = 0
-			if restSum == 0 {
-				break
-			}
+		}
+
+		if restSum == 0 {
+			break
 		}
 	}
 
