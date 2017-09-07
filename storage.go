@@ -5,31 +5,7 @@ import (
 	"errors"
 	"encoding/json"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
-	pb "github.com/hyperledger/fabric/protos/peer"
 )
-
-func (t *LoyaltyChaincode) userBalanceAsJson(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	if len(args) != 1 {
-		return shim.Error("Expected user to query")
-	}
-	balanceRq := User{}
-	if err := json.Unmarshal([]byte(args[0]), &balanceRq); err != nil {
-		return shim.Error(err.Error())
-	}
-
-	balance, err := t.userBalance(stub, balanceRq.Name)
-	if err != nil {
-		return shim.Error("Error getting userBalance: " + err.Error())
-	}
-
-	balanceJson := User{
-		Name:  balanceRq.Name,
-		Balance: balance,
-	}
-
-	result, _ := json.Marshal(balanceJson)
-	return shim.Success(result)
-}
 
 func (t *LoyaltyChaincode) setInitUserBalance(stub shim.ChaincodeStubInterface, prefix string, cn string, balance uint64) error {
 
@@ -43,11 +19,7 @@ func (t *LoyaltyChaincode) setInitUserBalance(stub shim.ChaincodeStubInterface, 
 	return stub.PutState(key, data)
 }
 
-func (t *LoyaltyChaincode) setUserBalance(stub shim.ChaincodeStubInterface, prefix string, cn string, balance uint64) error {
-
-	if balance < 0 {
-		return errors.New("balance can't be negative")
-	}
+func (t *LoyaltyChaincode) udpateUserBalance(stub shim.ChaincodeStubInterface, prefix string, cn string, delta uint64, negSign bool) error {
 
 	key, _ := stub.CreateCompositeKey(prefix, []string{cn})
 	data, err := stub.GetState(key)
@@ -58,7 +30,15 @@ func (t *LoyaltyChaincode) setUserBalance(stub shim.ChaincodeStubInterface, pref
 	}
 
 	newBalance := binary.LittleEndian.Uint64(data)
-	newBalance += balance
+
+	if negSign {
+		if newBalance - delta < 0 {
+			return errors.New("balance can't be negative")
+		}
+		newBalance -= delta
+	} else {
+		newBalance += delta
+	}
 
 	data = make([]byte, 8)
 	binary.LittleEndian.PutUint64(data, newBalance)
@@ -111,7 +91,7 @@ func (t *LoyaltyChaincode) makeGiftToTheUserAsBank(stub shim.ChaincodeStubInterf
 	}
 
 
-	return t.setUserBalance(stub, IndexCustomer, userCn, balance)
+	return t.udpateUserBalance(stub, IndexCustomer, userCn, balance, false)
 }
 
 
@@ -154,7 +134,6 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 
 	// get the balances from state
 	fromBalance, err := t.userBalance(stub, fromCn)
-	toBalance, err := t.userBalance(stub, toCn)
 	if err != nil {
 		return errors.New("Error getting to or from userBalance:" + err.Error())
 	}
@@ -221,8 +200,8 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 		return errors.New("User Balance and the sum of his assets have different amount of tokens")
 	}
 
-	err = t.setUserBalance(stub, IndexCustomer, fromCn, fromBalance-trValue)
-	err = t.setUserBalance(stub, IndexCustomer, toCn, toBalance+trValue)
+	err = t.udpateUserBalance(stub, IndexCustomer, fromCn, trValue, true)
+	err = t.udpateUserBalance(stub, IndexCustomer, toCn, trValue, false)
 	if err != nil {
 		return errors.New("Error setting to or from userBalance: " + err.Error())
 	}

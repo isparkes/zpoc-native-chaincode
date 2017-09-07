@@ -95,6 +95,42 @@ func getMyCustomerList(t *testing.T, stub *mock.FullMockStub) []User {
 	return users
 }
 
+func getUserBalance(t *testing.T, stub *mock.FullMockStub) User {
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("userBalance"))
+
+	if res.Status != shim.OK {
+		t.Errorf("Failed to getUserBalance: %s", res.Message)
+		t.FailNow()
+	}
+
+	var user = User{}
+	err := json.Unmarshal(res.Payload, &user)
+	if err != nil {
+		t.Errorf("Failed to parse UserBalance: %s", err.Error())
+		t.FailNow()
+	}
+
+	return user
+}
+
+func getCustomerBalanceInfo(t *testing.T, stub *mock.FullMockStub) []TransferEvent {
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("customerBalanceInfo"))
+
+	if res.Status != shim.OK {
+		t.Errorf("Failed to getCustomerBalanceInfo: %s", res.Message)
+		t.FailNow()
+	}
+
+	var transfers = []TransferEvent{}
+	err := json.Unmarshal(res.Payload, &transfers)
+	if err != nil {
+		t.Errorf("Failed to parse ballanceInfo: %s", err.Error())
+		t.FailNow()
+	}
+
+	return transfers
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------------------------------------------------
@@ -172,29 +208,58 @@ func TestTransferUserToUserAsset(t *testing.T) {
 	fmt.Printf("------------------------------------------------------\n")
 	stub := initToken(t)
 	stub.MockCreator("default", testdata.TestUser1Cert)
-	stub.MockCreator("default", testdata.TestUser2Cert)
 	createActors(t, stub, `[{"role": "bank", "name": "testUser"}, {"role": "customer", "name": "testUser"}, {"role": "customer", "name": "testUser2"}]`)
 	provideAsset(t, stub, `{"receiver": "testUser", "value": 1000}`)
-	provideAsset(t, stub, `{"receiver": "testUser1", "value": 111}`)
+	provideAsset(t, stub, `{"receiver": "testUser2", "value": 111}`)
+	transferUserToUser(t, stub, "testUser2", 500)
 
-	for key, val := range stub.State {
-		fmt.Printf("%s->%s\n",key, val)
+	stub.MockCreator("default", testdata.TestUser2Cert)
+	transfers := getCustomerBalanceInfo(t, stub)
+	if len(transfers) != 2 {
+		t.Errorf("Expected 2 but got %d transfers", len(transfers))
+		t.FailNow()
 	}
 
-	transferUserToUser(t, stub, "testUser1", 500)
+	stub.MockCreator("default", testdata.TestUser1Cert)
+	transferUserToUser(t, stub, "testUser2", 500)
 
-	fmt.Printf("------------------------------------------------------\n")
-
-	for key, val := range stub.State {
-		fmt.Printf("%s->%s\n",key, val)
+	stub.MockCreator("default", testdata.TestUser2Cert)
+	transfers = getCustomerBalanceInfo(t, stub)
+	if len(transfers) != 3 {
+		t.Errorf("Expected 3 but got %d transfers", len(transfers))
+		t.FailNow()
 	}
 
-	fmt.Printf("------------------------------------------------------\n")
-	transferUserToUser(t, stub, "testUser1", 500)
-
 	for key, val := range stub.State {
-		fmt.Printf("%s->%s\n",key, val)
+		fmt.Printf("%s<->%s\n", key, val)
 	}
+
+	sum := uint64(0)
+	for i:=0; i < len(transfers); i++ {
+		sum += transfers[i].Value
+	}
+
+	userInfo := getUserBalance(t, stub)
+
+	if userInfo.Balance != sum {
+		t.Errorf("user balance(%d) and transactionSum(%d) do not coincide" , userInfo.Balance, sum)
+		t.FailNow()
+	}
+
+	stub.MockCreator("default", testdata.TestUser1Cert)
+	transfers = getCustomerBalanceInfo(t, stub)
+	userInfo = getUserBalance(t, stub)
+
+	sum = uint64(0)
+	for i:=0; i < len(transfers); i++ {
+		sum += transfers[i].Value
+	}
+
+	if userInfo.Balance != sum && sum != 0{
+		t.Errorf("user balance(%d) and transactionSum(%d) do not coincide" , userInfo.Balance, sum)
+		t.FailNow()
+	}
+
 
 }
 

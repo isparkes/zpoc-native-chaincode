@@ -58,7 +58,9 @@ func (t *LoyaltyChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response 
 	case "transfer":
 		return t.transfer(stub, args)
 	case "userBalance":
-		return t.userBalanceAsJson(stub, args)
+		return t.getUserBalance(stub, args)
+	case "customerBalanceInfo":
+		return t.customerBalanceInfo(stub, args)
 	case "createActors":
 		return t.createActors(stub, args)
 	case "getCustomersNames":
@@ -166,6 +168,74 @@ func (t *LoyaltyChaincode) getAllCostumerNames(stub shim.ChaincodeStubInterface,
 	return shim.Success(resultJson)
 }
 
+func (t *LoyaltyChaincode) getUserBalance(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	caller, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+
+	balance, err := t.userBalance(stub, caller)
+	if err != nil {
+		return shim.Error("Error getting userBalance: " + err.Error())
+	}
+
+	balanceJson := User{
+		Name:  caller,
+		Balance: balance,
+	}
+
+	result, _ := json.Marshal(balanceJson)
+	return shim.Success(result)
+}
+
+func (t *LoyaltyChaincode) customerBalanceInfo(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	caller, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+
+	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAsset, []string{caller})
+	if err != nil {
+		return shim.Error("Could not build invoice iterator: " + err.Error())
+	}
+	defer iterator.Close()
+
+	var result []*TransferEvent = []*TransferEvent{}
+	for i := 0; iterator.HasNext(); i++ {
+		kv, err := iterator.Next()
+
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		_, parts, err := stub.SplitCompositeKey(kv.Key)
+		spender := parts[1]
+
+		asset := Asset {}
+		err = json.Unmarshal([]byte(kv.Value), &asset)
+		if err != nil {
+			return shim.Error("asset parsing error: " + err.Error())
+		}
+
+		transfer := TransferEvent {
+			Receiver: caller,
+			Sender: spender,
+			Value: asset.Value,
+		}
+
+		result = append(result, &transfer)
+	}
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return shim.Error("Could not marshal json: " + err.Error())
+	}
+
+	return shim.Success(resultJson)
+}
+
 func (t *LoyaltyChaincode) provideAsset(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	caller, err := CallerCN(stub)
@@ -184,7 +254,6 @@ func (t *LoyaltyChaincode) provideAsset(stub shim.ChaincodeStubInterface, args [
 
 	params := Transfer{}
 	err = json.Unmarshal([]byte(args[0]), &params)
-
 	if params.Receiver == "" || params.Value <= 0 {
 		return shim.Error("Bad request: wrong params!")
 	}
