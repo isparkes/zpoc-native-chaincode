@@ -46,4 +46,5 @@ func (t *LoyaltyChaincode) createUser(stub shim.ChaincodeStubInterface, cn strin
 		return errors.New("Error creating user '" + cn + "' with the role '" + role + "': " + err.Error())
 	}
 
+	return nil
 }

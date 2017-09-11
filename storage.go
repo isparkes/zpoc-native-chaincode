@@ -45,8 +45,8 @@ func (t *LoyaltyChaincode) updateUserBalance(stub shim.ChaincodeStubInterface, p
 	return stub.PutState(key, data)
 }
 
-func (t *LoyaltyChaincode) userBalance(stub shim.ChaincodeStubInterface, cn string) (uint64, error) {
-	key, _ := stub.CreateCompositeKey(IndexCustomer, []string{cn})
+func (t *LoyaltyChaincode) userBalance(stub shim.ChaincodeStubInterface, prefix string, cn string) (uint64, error) {
+	key, _ := stub.CreateCompositeKey(prefix, []string{cn})
 	data, err := stub.GetState(key)
 	if err != nil {
 		return 0, err
@@ -133,7 +133,7 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 	}
 
 	// get the balances from state
-	fromBalance, err := t.userBalance(stub, fromCn)
+	fromBalance, err := t.userBalance(stub, IndexCustomer, fromCn)
 	if err != nil {
 		return errors.New("Error getting to or from userBalance:" + err.Error())
 	}
@@ -208,4 +208,110 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 
 
 	return nil
+}
+
+func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, userCn string, shopCn string) error {
+
+	allowance, err := t.getAllowance(stub, shopCn, userCn)
+	if err != nil {
+		return err
+	}
+
+	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAsset, []string{userCn})
+	if err != nil {
+		return errors.New("Could not build invoice iterator: " + err.Error())
+	}
+	defer iterator.Close()
+
+	restSum := allowance.Value
+
+	for i := 0; iterator.HasNext(); i++ {
+		kv, err := iterator.Next()
+
+		if err != nil {
+			return errors.New(err.Error())
+		}
+
+		_, parts, err := stub.SplitCompositeKey(kv.Key)
+		sourceCn := parts[1]
+		id := parts[2]
+
+		asset:= Asset{}
+		err = json.Unmarshal(kv.Value, &asset)
+		if err != nil {
+			return err
+		}
+
+		if asset.Value <= restSum {
+			asset.History = append(asset.History, userCn)
+
+			// move asset to shop
+			_, err = t.createAsset(stub, IndexShopAsset, shopCn, userCn, asset.History, asset.Value)
+			if err != nil {
+				return errors.New("Error creating Asset for '" + shopCn + "':" + err.Error())
+			}
+
+			// move asset to bank since it shops claim
+			asset.History = append(asset.History, shopCn)
+			_, err = t.createAsset(stub, IndexBankAsset, asset.History[0], shopCn, asset.History, asset.Value)
+			if err != nil {
+				return errors.New("Error creating Asset for '" + asset.History[0] + "':" + err.Error())
+			}
+
+			// commit claim balance to the bank
+			err = t.updateUserBalance(stub, IndexBank, asset.History[0],  asset.Value, false)
+			if err != nil {
+				return errors.New("Error updating bank balance: " + err.Error())
+			}
+
+			err = t.removeAsset(stub, IndexCustomerAsset, userCn, sourceCn, id)
+			if err != nil {
+				return errors.New("Error removing Asset '" + userCn + "-" + sourceCn + "-" + id+ "':" + err.Error())
+			}
+			restSum -= asset.Value
+		} else {
+			_, err = t.storeAsset(stub, IndexCustomerAsset, userCn, sourceCn, id, asset.History, asset.Value - restSum)
+			if err != nil {
+				return errors.New("Error updating Asset '" + userCn + "-" + sourceCn + "-" + id+ "':" + err.Error())
+			}
+			// move asset to shop
+			asset.History = append(asset.History, userCn)
+			_, err = t.createAsset(stub, IndexShopAsset, shopCn, userCn, asset.History, restSum)
+			if err != nil {
+				return errors.New("Error creating Asset for '" + shopCn + "':" + err.Error())
+			}
+
+			// move asset to bank since it shops claim
+			asset.History = append(asset.History, shopCn)
+			_, err = t.createAsset(stub, IndexBankAsset, asset.History[0], shopCn, asset.History, restSum)
+			if err != nil {
+				return errors.New("Error creating Asset for '" + asset.History[0] + "':" + err.Error())
+			}
+
+			// commit claim balance to the bank
+			err = t.updateUserBalance(stub, IndexBank, asset.History[0], restSum, false)
+			if err != nil {
+				return errors.New("Error updating bank balance: " + err.Error())
+			}
+
+			restSum = 0
+		}
+
+		if restSum == 0 {
+			break
+		}
+	}
+
+	if restSum != 0 {
+		return errors.New("User Balance and the sum of his assets have different amount of tokens")
+	}
+
+
+	// update shop balance
+	err = t.updateUserBalance(stub, IndexShop, shopCn, allowance.Value, false)
+	if err != nil {
+		return errors.New("Error setting to or from userBalance: " + err.Error())
+	}
+
+	return t.removeAllowance(stub, shopCn, userCn)
 }

@@ -12,7 +12,7 @@ func (t *LoyaltyChaincode) removeAsset(stub shim.ChaincodeStubInterface, prefix 
 }
 
 func (t *LoyaltyChaincode) createAsset(stub shim.ChaincodeStubInterface, prefix string, owner string, spender string, history []string, value uint64) (*Asset, error) {
-	id, err := t.countExistingGiftsFromSameSource(stub, owner, spender)
+	id, err := t.countExistingAssetsfromSameSource(stub, prefix, owner, spender)
 	if err != nil {
 		return nil, err
 	}
@@ -42,10 +42,10 @@ func (t *LoyaltyChaincode) storeAsset(stub shim.ChaincodeStubInterface, prefix s
 	return &asset, nil
 }
 
-func (t *LoyaltyChaincode) countExistingGiftsFromSameSource(stub shim.ChaincodeStubInterface, owner string, spender string, ) (uint64, error)  {
+func (t *LoyaltyChaincode) countExistingAssetsfromSameSource(stub shim.ChaincodeStubInterface, prefix string, owner string, spender string, ) (uint64, error)  {
 
 
-	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAsset, []string{owner, spender})
+	iterator, err := stub.GetStateByPartialCompositeKey(prefix, []string{owner, spender})
 	if err != nil {
 		return 0, err
 	}

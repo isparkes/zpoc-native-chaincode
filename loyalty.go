@@ -16,6 +16,7 @@ const KeySettings = "__settings"
 const IndexCustomer = "cn~customer"
 const IndexCustomerAsset = "cn~customer~asset"
 const IndexBank = "cn~bank"
+const IndexBankAsset = "cn~bank~asset"
 const IndexBanksCustomers = "cn~bank~customer"
 const IndexShop = "cn~shop"
 const IndexShopAsset = "cn~shop~asset"
@@ -59,8 +60,12 @@ func (t *LoyaltyChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response 
 		return shim.Success(info)
 	case "transfer":
 		return t.transfer(stub, args)
-	case "userBalance":
-		return t.getUserBalance(stub, args)
+	case "customerBalance":
+		return t.getUserBalance(stub, args, "customer")
+	case "bankBalance":
+		return t.getUserBalance(stub, args, "bank")
+	case "shopBalance":
+		return t.getUserBalance(stub, args, "shop")
 	case "customerBalanceInfo":
 		return t.customerBalanceInfo(stub, args)
 	case "createActors":
@@ -73,6 +78,8 @@ func (t *LoyaltyChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response 
 		return t.getMyCustomerList(stub, args)
 	case "buy":
 		return t.buy(stub, args)
+	case "withdraw":
+		return t.withdraw(stub, args)
 	default:
 		return shim.Error("Incorrect function name: " + function)
 	}
@@ -120,14 +127,7 @@ func (t *LoyaltyChaincode) createActors(stub shim.ChaincodeStubInterface, args [
 	}
 
 	for i := 0; i < len(users); i++ {
-		switch users[i].Role {
-		case "customer":
-			err = t.setInitUserBalance(stub, IndexCustomer, users[i].Name, 0)
-		case "bank":
-			err = t.setInitUserBalance(stub, IndexBank, users[i].Name, 0)
-		case "shop":
-			err = t.setInitUserBalance(stub, IndexShop, users[i].Name, 0)
-		}
+		err := t.createUser(stub, users[i].Name, users[i].Role)
 
 		if err != nil {
 			return shim.Error("Error creating user '" + users[i].Name + "'")
@@ -172,14 +172,22 @@ func (t *LoyaltyChaincode) getAllCostumerNames(stub shim.ChaincodeStubInterface,
 	return shim.Success(resultJson)
 }
 
-func (t *LoyaltyChaincode) getUserBalance(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *LoyaltyChaincode) getUserBalance(stub shim.ChaincodeStubInterface, args []string, role string) pb.Response {
 
 	caller, err := CallerCN(stub)
 	if err != nil {
 		return shim.Error("Error extracting user identity")
 	}
 
-	balance, err := t.userBalance(stub, caller)
+	prefix := IndexCustomer
+	switch role{
+	case "shop":
+		prefix = IndexShop
+	case "bank":
+		prefix = IndexBank
+	}
+
+	balance, err := t.userBalance(stub, prefix, caller)
 	if err != nil {
 		return shim.Error("Error getting userBalance: " + err.Error())
 	}
@@ -375,11 +383,38 @@ func (t *LoyaltyChaincode) buy(stub shim.ChaincodeStubInterface, args []string) 
 
 	// send event
 	allowanceEvent := AllowanceEvent{}
-	allowanceEvent.Spender = allowance.Spender
+	allowanceEvent.Buyer = allowance.Buyer
 	allowanceEvent.Shop = transfer.Receiver
 	allowanceEvent.Value = allowance.Value
 	evtData, _ := json.Marshal(allowanceEvent)
 	stub.SetEvent("Buy", evtData)
+
+	return shim.Success(nil)
+}
+
+func (t *LoyaltyChaincode) withdraw(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	shopCn, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+	if len(args) != 1 {
+		return shim.Error("Buy expected 1 argument")
+	}
+
+	allowance := Allowance{}
+	err = json.Unmarshal([]byte(args[0]), &allowance)
+	if err != nil {
+		return shim.Error("Error parsing arguments")
+	}
+
+	if !t.userExists(stub, allowance.Buyer, "customer") {
+		return shim.Error("Bad request: customer doesn't exist")
+	}
+
+	err = t.withdrawUserAssets(stub, allowance.Buyer, shopCn)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 
 	return shim.Success(nil)
 }

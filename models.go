@@ -27,12 +27,12 @@ type TransferEvent struct {
 }
 
 type Allowance struct {
-	Spender string `json:"spender"`
-	Value   uint64 `json:"value"`
+	Buyer string `json:"buyer"`
+	Value uint64 `json:"value"`
 }
 
 type AllowanceEvent struct {
-	Spender string `json:"spender"`
-	Value   uint64 `json:"value"`
-	Shop string `json:"shop"`
+	Buyer string `json:"buyer"`
+	Value uint64 `json:"value"`
+	Shop  string `json:"shop"`
 }
