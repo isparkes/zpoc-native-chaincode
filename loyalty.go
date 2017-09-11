@@ -18,6 +18,8 @@ const IndexCustomerAsset = "cn~customer~asset"
 const IndexBank = "cn~bank"
 const IndexBanksCustomers = "cn~bank~customer"
 const IndexShop = "cn~shop"
+const IndexShopAsset = "cn~shop~asset"
+const IndexShopAllowances = "cn~shop~allowances"
 
 func (t *LoyaltyChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	function, args := stub.GetFunctionAndParameters()
@@ -69,9 +71,11 @@ func (t *LoyaltyChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response 
 		return t.provideAsset(stub, args)
 	case "getMyCustomerList":
 		return t.getMyCustomerList(stub, args)
+	case "buy":
+		return t.buy(stub, args)
+	default:
+		return shim.Error("Incorrect function name: " + function)
 	}
-
-	return shim.Error("Incorrect function name: " + function)
 }
 
 func (t *LoyaltyChaincode) getSettings(stub shim.ChaincodeStubInterface) (Settings, error) {
@@ -258,6 +262,10 @@ func (t *LoyaltyChaincode) provideAsset(stub shim.ChaincodeStubInterface, args [
 		return shim.Error("Bad request: wrong params!")
 	}
 
+	if !t.userExists(stub, params.Receiver, "customer") {
+		return shim.Error("Bad request: receiver doesn't exist")
+	}
+
 	err = t.makeGiftToTheUserAsBank(stub, caller, params.Receiver, params.Value);
 	if err != nil {
 		return shim.Error("Could not commit gift to the user: " + err.Error())
@@ -316,6 +324,11 @@ func (t *LoyaltyChaincode) transfer(stub shim.ChaincodeStubInterface, args []str
 		return shim.Success(nil)
 	}
 
+	if !t.userExists(stub, transfer.Receiver, "customer") {
+		return shim.Error("Bad request: receiver doesn't exist")
+	}
+
+
 	t.userToUserTransfer(stub, from, transfer.Receiver, transfer.Value)
 
 	// send event
@@ -334,4 +347,39 @@ func main() {
 	if err != nil {
 		fmt.Errorf("Error starting Token chaincode: %s", err)
 	}
+}
+
+func (t *LoyaltyChaincode) buy(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	buyer, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+	if len(args) != 1 {
+		return shim.Error("Buy expected 1 argument")
+	}
+
+	transfer := Transfer{}
+	err = json.Unmarshal([]byte(args[0]), &transfer)
+	if err != nil {
+		return shim.Error("Error parsing arguments")
+	}
+
+	if !t.userExists(stub, transfer.Receiver, "shop") {
+		return shim.Error("Bad request: shop doesn't exist")
+	}
+
+	allowance, err := t.createAllowance(stub, transfer.Receiver, buyer, transfer.Value)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// send event
+	allowanceEvent := AllowanceEvent{}
+	allowanceEvent.Spender = allowance.Spender
+	allowanceEvent.Shop = transfer.Receiver
+	allowanceEvent.Value = allowance.Value
+	evtData, _ := json.Marshal(allowanceEvent)
+	stub.SetEvent("Buy", evtData)
+
+	return shim.Success(nil)
 }

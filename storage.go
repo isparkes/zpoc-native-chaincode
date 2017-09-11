@@ -19,7 +19,7 @@ func (t *LoyaltyChaincode) setInitUserBalance(stub shim.ChaincodeStubInterface, 
 	return stub.PutState(key, data)
 }
 
-func (t *LoyaltyChaincode) udpateUserBalance(stub shim.ChaincodeStubInterface, prefix string, cn string, delta uint64, negSign bool) error {
+func (t *LoyaltyChaincode) updateUserBalance(stub shim.ChaincodeStubInterface, prefix string, cn string, delta uint64, negSign bool) error {
 
 	key, _ := stub.CreateCompositeKey(prefix, []string{cn})
 	data, err := stub.GetState(key)
@@ -33,7 +33,7 @@ func (t *LoyaltyChaincode) udpateUserBalance(stub shim.ChaincodeStubInterface, p
 
 	if negSign {
 		if newBalance - delta < 0 {
-			return errors.New("balance can't be negative")
+			return errors.New("balance of user '" + cn + "' is to small to proceed transaction")
 		}
 		newBalance -= delta
 	} else {
@@ -91,7 +91,7 @@ func (t *LoyaltyChaincode) makeGiftToTheUserAsBank(stub shim.ChaincodeStubInterf
 	}
 
 
-	return t.udpateUserBalance(stub, IndexCustomer, userCn, balance, false)
+	return t.updateUserBalance(stub, IndexCustomer, userCn, balance, false)
 }
 
 
@@ -200,8 +200,8 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 		return errors.New("User Balance and the sum of his assets have different amount of tokens")
 	}
 
-	err = t.udpateUserBalance(stub, IndexCustomer, fromCn, trValue, true)
-	err = t.udpateUserBalance(stub, IndexCustomer, toCn, trValue, false)
+	err = t.updateUserBalance(stub, IndexCustomer, fromCn, trValue, true)
+	err = t.updateUserBalance(stub, IndexCustomer, toCn, trValue, false)
 	if err != nil {
 		return errors.New("Error setting to or from userBalance: " + err.Error())
 	}

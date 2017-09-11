@@ -26,7 +26,13 @@ type TransferEvent struct {
 	Value uint64 `json:"value"`
 }
 
-type Approve struct {
+type Allowance struct {
 	Spender string `json:"spender"`
 	Value   uint64 `json:"value"`
+}
+
+type AllowanceEvent struct {
+	Spender string `json:"spender"`
+	Value   uint64 `json:"value"`
+	Shop string `json:"shop"`
 }
