@@ -3,13 +3,13 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
-	//"errors"
+	// "errors"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/loyalty/chaincode/mock"
 	"github.com/loyalty/chaincode/testdata"
 	"testing"
-	"fmt"
+	// "fmt"
 	"strconv"
 )
 
@@ -187,6 +187,43 @@ func getCustomerBalanceInfo(t *testing.T, stub *mock.FullMockStub) []TransferEve
 	return transfers
 }
 
+func getShopClaims(t *testing.T, stub *mock.FullMockStub) []Asset {
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("getShopClaims"))
+
+	if res.Status != shim.OK {
+		t.Errorf("Failed to get getShopClaims: %s", res.Message)
+		t.FailNow()
+	}
+
+	var assets = []Asset{}
+	err := json.Unmarshal(res.Payload, &assets)
+	if err != nil {
+		t.Errorf("Failed to parse Assets: %s", err.Error())
+		t.FailNow()
+	}
+
+	return assets
+}
+
+func getBankObligations(t *testing.T, stub *mock.FullMockStub) []BankObligation {
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("getBankObligations"))
+
+	if res.Status != shim.OK {
+		t.Errorf("Failed to get getBankObligations: %s", res.Message)
+		t.FailNow()
+	}
+
+	var bankObligation = []BankObligation{}
+	err := json.Unmarshal(res.Payload, &bankObligation)
+	if err != nil {
+		t.Errorf("Failed to parse BankObligations: %s", err.Error())
+		t.FailNow()
+	}
+
+	return bankObligation
+}
+
+
 // ---------------------------------------------------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------------------------------------------------
@@ -322,11 +359,6 @@ func TestBuyAndWithdraw(t *testing.T) {
 	provideAsset(t, stub, `{"receiver": "testUser2", "value": 1000}`)
 	transferUserToUser(t, stub, "testUser2", 500)
 
-	fmt.Printf("------------------------------------------------------\n")
-	for key, val := range stub.State {
-		fmt.Printf("%s<->%s\n", key, val)
-	}
-
 	stub.MockCreator("default", testdata.TestUser2Cert)
 	buy(t, stub, "testUser3", 1500)
 
@@ -334,11 +366,6 @@ func TestBuyAndWithdraw(t *testing.T) {
 	if userInfo.Balance != 0{
 		t.Errorf("expected 0 but received %d" , userInfo.Balance)
 		t.FailNow()
-	}
-
-	fmt.Printf("------------------------------------------------------\n")
-	for key, val := range stub.State {
-		fmt.Printf("%s<->%s\n", key, val)
 	}
 
 	stub.MockCreator("default", testdata.TestUser3Cert)
@@ -350,9 +377,18 @@ func TestBuyAndWithdraw(t *testing.T) {
 		t.FailNow()
 	}
 
-	fmt.Printf("------------------------------------------------------\n")
-	for key, val := range stub.State {
-		fmt.Printf("%s<->%s\n", key, val)
+	bankObligations := getBankObligations(t, stub)
+	if len(bankObligations) != 2 {
+		t.Errorf("expected 2 but received %d" , len(bankObligations))
+		t.FailNow()
+	}
+	sum := uint64(0)
+	for i:=0; i < len(bankObligations); i++ {
+		sum += bankObligations[i].Value
+	}
+	if sum != 1500 {
+		t.Errorf("expected 1500 but received %d" , sum)
+		t.FailNow()
 	}
 
 	stub.MockCreator("default", testdata.TestUser1Cert)
@@ -361,6 +397,26 @@ func TestBuyAndWithdraw(t *testing.T) {
 		t.Errorf("expected 1500 but received %d" , userInfo.Balance)
 		t.FailNow()
 	}
+
+	assets := getShopClaims(t, stub)
+	if len(assets) != 2 {
+		t.Errorf("expected 2 but received %d" , len(assets))
+		t.FailNow()
+	}
+
+	sum = uint64(0)
+	for i:=0; i < len(assets); i++ {
+		sum += assets[i].Value
+	}
+	if sum != 1500 {
+		t.Errorf("expected 1500 but received %d" , sum)
+		t.FailNow()
+	}
+
+	// fmt.Printf("------------------------------------------------------\n")
+	// for key, val := range stub.State {
+	// 	fmt.Printf("%s<->%s\n", key, val)
+	// }
 
 }
 

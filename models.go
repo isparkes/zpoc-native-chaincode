@@ -17,13 +17,18 @@ type User struct {
 
 type Transfer struct {
 	Receiver    string `json:"receiver"`
-	Value uint64 `json:"value"`
+	Value 		uint64 `json:"value"`
+}
+
+type BankObligation struct {
+	Bank    string `json:"bank"`
+	Value 	uint64 `json:"value"`
 }
 
 type TransferEvent struct {
-	Sender    string `json:"sender"`
+	Sender		string `json:"sender"`
 	Receiver    string `json:"receiver"`
-	Value uint64 `json:"value"`
+	Value 		uint64 `json:"value"`
 }
 
 type Allowance struct {

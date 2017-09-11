@@ -72,6 +72,10 @@ func (t *LoyaltyChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response 
 		return t.createActors(stub, args)
 	case "getCustomersNames":
 		return t.getAllCostumerNames(stub, args)
+	case "getShopClaims":
+		return t.getShopClaims(stub, args)
+	case "getBankObligations":
+		return t.getBankObligations(stub, args)
 	case "provideAsset":
 		return t.provideAsset(stub, args)
 	case "getMyCustomerList":
@@ -208,6 +212,10 @@ func (t *LoyaltyChaincode) customerBalanceInfo(stub shim.ChaincodeStubInterface,
 		return shim.Error("Error extracting user identity")
 	}
 
+	if !t.userExists(stub, caller, "customer") {
+		return shim.Error("I don't know you, " + caller + "!")
+	}
+
 	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAsset, []string{caller})
 	if err != nil {
 		return shim.Error("Could not build invoice iterator: " + err.Error())
@@ -238,6 +246,95 @@ func (t *LoyaltyChaincode) customerBalanceInfo(stub shim.ChaincodeStubInterface,
 		}
 
 		result = append(result, &transfer)
+	}
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return shim.Error("Could not marshal json: " + err.Error())
+	}
+
+	return shim.Success(resultJson)
+}
+
+func (t *LoyaltyChaincode) getShopClaims(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	bank, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+
+	if !t.userExists(stub, bank, "bank") {
+		return shim.Error("I don't know you, " + bank + "!")
+	}
+
+	iterator, err := stub.GetStateByPartialCompositeKey(IndexBankAsset, []string{bank})
+	if err != nil {
+		return shim.Error("Could not build invoice iterator: " + err.Error())
+	}
+	defer iterator.Close()
+
+	var result []*Asset = []*Asset{}
+	for i := 0; iterator.HasNext(); i++ {
+		kv, err := iterator.Next()
+
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		asset := Asset {}
+		err = json.Unmarshal([]byte(kv.Value), &asset)
+		if err != nil {
+			return shim.Error("asset parsing error: " + err.Error())
+		}
+
+		result = append(result, &asset)
+	}
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return shim.Error("Could not marshal json: " + err.Error())
+	}
+
+	return shim.Success(resultJson)
+}
+
+func (t *LoyaltyChaincode) getBankObligations(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	shop, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+
+	if !t.userExists(stub, shop, "shop") {
+		return shim.Error("I don't know you, " + shop + "!")
+	}
+
+	iterator, err := stub.GetStateByPartialCompositeKey(IndexShopAsset, []string{shop})
+	if err != nil {
+		return shim.Error("Could not build invoice iterator: " + err.Error())
+	}
+	defer iterator.Close()
+
+	var result []*BankObligation = []*BankObligation{}
+	for i := 0; iterator.HasNext(); i++ {
+		kv, err := iterator.Next()
+
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		asset := Asset {}
+		err = json.Unmarshal([]byte(kv.Value), &asset)
+		if err != nil {
+			return shim.Error("asset parsing error: " + err.Error())
+		}
+
+		bankObligation := BankObligation {
+			Bank: asset.History[0],
+			Value: asset.Value,
+		}
+
+		result = append(result, &bankObligation)
 	}
 
 	resultJson, err := json.Marshal(result)
