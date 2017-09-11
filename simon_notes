@@ -1,2 +1,3 @@
 [{'name': 'shop1', 'role': 'shop'}, {'name': 'customer1', 'role': 'customer'}, {'name': 'customer2', 'role': 'customer'}, {'name': 'bank1', 'role': 'bank'}, {'name': 'bank2', 'role': 'bank'}]
 {'receiver': 'customer1', 'value': 1000}
+

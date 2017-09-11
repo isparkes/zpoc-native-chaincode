@@ -426,7 +426,7 @@ func (t *LoyaltyChaincode) transfer(stub shim.ChaincodeStubInterface, args []str
 	// to prevent "generating" tokens because of
 	// committed state reading
 	if from == transfer.Receiver {
-		return shim.Success(nil)
+		return shim.Error("Transfer to yourself is not allowed")
 	}
 
 	if !t.userExists(stub, transfer.Receiver, "customer") {
@@ -434,7 +434,10 @@ func (t *LoyaltyChaincode) transfer(stub shim.ChaincodeStubInterface, args []str
 	}
 
 
-	t.userToUserTransfer(stub, from, transfer.Receiver, transfer.Value)
+	err = t.userToUserTransfer(stub, from, transfer.Receiver, transfer.Value)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 
 	// send event
 	transferEvent := TransferEvent{}
@@ -444,7 +447,7 @@ func (t *LoyaltyChaincode) transfer(stub shim.ChaincodeStubInterface, args []str
 	evtData, _ := json.Marshal(transferEvent)
 	stub.SetEvent("Transfer", evtData)
 
-	return shim.Success(nil)
+	return shim.Success(evtData)
 }
 
 func main() {
@@ -508,7 +511,7 @@ func (t *LoyaltyChaincode) withdraw(stub shim.ChaincodeStubInterface, args []str
 		return shim.Error("Bad request: customer doesn't exist")
 	}
 
-	err = t.withdrawUserAssets(stub, allowance.Buyer, shopCn)
+	err = t.withdrawUserAssets(stub, allowance.Buyer, shopCn, allowance.Value)
 	if err != nil {
 		return shim.Error(err.Error())
 	}

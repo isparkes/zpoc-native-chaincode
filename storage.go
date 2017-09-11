@@ -210,11 +210,15 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 	return nil
 }
 
-func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, userCn string, shopCn string) error {
+func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, userCn string, shopCn string, claim uint64) error {
 
 	allowance, err := t.getAllowance(stub, shopCn, userCn)
 	if err != nil {
 		return err
+	}
+
+	if claim != allowance.Value {
+		return errors.New("Shop claim and user allowance are not equal: " + err.Error())
 	}
 
 	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAsset, []string{userCn})
