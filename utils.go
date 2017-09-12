@@ -8,6 +8,7 @@ import (
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/msp"
 	"strconv"
+	"math/rand"
 )
 
 func parsePEM(certPEM string) (*x509.Certificate, error) {
@@ -46,4 +47,8 @@ func CallerCN(stub shim.ChaincodeStubInterface) (string, error) {
 
 func uintToString(num uint64) (string) {
 	return strconv.FormatUint(num, 10)
+}
+
+func uint64Random() uint64 {
+	return uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
 }

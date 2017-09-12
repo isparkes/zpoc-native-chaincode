@@ -30,6 +30,14 @@ func (t *LoyaltyChaincode) removeAllowance(stub shim.ChaincodeStubInterface, sho
 }
 
 func (t *LoyaltyChaincode) createAllowance(stub shim.ChaincodeStubInterface, shop string, spender string, value uint64) (*Allowance, error) {
+
+	userBalance, err := t.userBalance(stub, IndexCustomer, spender)
+	if err != nil {
+		return nil, err
+	} else if userBalance < value {
+		return nil, errors.New("User has not enough balance to proceed transaction")
+	}
+
 	key, _ := stub.CreateCompositeKey(IndexShopAllowances, []string{shop, spender})
 
 	existingAllowance, err := t.getAllowance(stub, shop, spender)

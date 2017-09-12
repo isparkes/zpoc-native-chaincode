@@ -158,6 +158,10 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 		}
 
 		_, parts, err := stub.SplitCompositeKey(kv.Key)
+		if err != nil {
+			return errors.New("Error splitting composite key" + err.Error())
+		}
+
 		sourceCn := parts[1]
 		id := parts[2]
 
@@ -237,6 +241,10 @@ func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, 
 		}
 
 		_, parts, err := stub.SplitCompositeKey(kv.Key)
+		if err != nil {
+			return errors.New("Error splitting composite key" + err.Error())
+		}
+
 		sourceCn := parts[1]
 		id := parts[2]
 

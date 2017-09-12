@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
+	"errors"
 )
 
 
@@ -12,9 +13,18 @@ func (t *LoyaltyChaincode) removeAsset(stub shim.ChaincodeStubInterface, prefix 
 }
 
 func (t *LoyaltyChaincode) createAsset(stub shim.ChaincodeStubInterface, prefix string, owner string, spender string, history []string, value uint64) (*Asset, error) {
-	id, err := t.countExistingAssetsfromSameSource(stub, prefix, owner, spender)
-	if err != nil {
-		return nil, err
+	var id uint64 = uint64(0)
+
+	// check if key exists already
+	for {
+		id = uint64Random()
+		key, _ := stub.CreateCompositeKey(prefix, []string{owner, spender, uintToString(id)})
+		res, err := stub.GetState(key)
+		if err != nil {
+			return nil, errors.New("Error trying to find an unused key: " + err.Error())
+		} else if res == nil {
+			break
+		}
 	}
 
 	return t.storeAsset(stub, prefix, owner, spender, uintToString(id), history, value)
@@ -42,10 +52,10 @@ func (t *LoyaltyChaincode) storeAsset(stub shim.ChaincodeStubInterface, prefix s
 	return &asset, nil
 }
 
-func (t *LoyaltyChaincode) countExistingAssetsfromSameSource(stub shim.ChaincodeStubInterface, prefix string, owner string, spender string, ) (uint64, error)  {
+/*func (t *LoyaltyChaincode) countExistingAssetsfromSameSource(stub shim.ChaincodeStubInterface, prefix string, owner string, spender string, ) (uint64, error)  {
 
 
-	iterator, err := stub.GetStateByPartialCompositeKey(prefix, []string{owner, spender})
+	/*iterator, err := stub.GetStateByPartialCompositeKey(prefix, []string{owner, spender})
 	if err != nil {
 		return 0, err
 	}
@@ -60,6 +70,7 @@ func (t *LoyaltyChaincode) countExistingAssetsfromSameSource(stub shim.Chaincode
 	if err != nil {
 		return 0, err
 	}
+	var id = uint64Random()
 
-	return num, nil
-}
+	return id, nil
+}*/

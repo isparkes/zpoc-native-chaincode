@@ -9,7 +9,7 @@ import (
 	"github.com/loyalty/chaincode/mock"
 	"github.com/loyalty/chaincode/testdata"
 	"testing"
-	// "fmt"
+	"fmt"
 	"strconv"
 )
 
@@ -275,12 +275,12 @@ func TestProvideAsset(t *testing.T) {
 		t.FailNow()
 	}
 
-	key, _ = stub.CreateCompositeKey(IndexCustomerAsset, []string{"user1", "testUser", "0"})
+	/*key, _ = stub.CreateCompositeKey(IndexCustomerAsset, []string{"user1", "testUser", "0"})
 	res, err = stub.GetState(key)
 	if err != nil || res == nil {
 		t.Errorf("Failed to retrieve Asset for user %s", "user1")
 		t.FailNow()
-	}
+	}*/
 
 	users := getMyCustomerList(t, stub)
 	if len(users) != 1 {
@@ -303,6 +303,7 @@ func TestTransferUserToUserAsset(t *testing.T) {
 	createActors(t, stub, `[{"role": "bank", "name": "testUser"}, {"role": "customer", "name": "testUser"}, {"role": "customer", "name": "testUser2"}]`)
 	provideAsset(t, stub, `{"receiver": "testUser", "value": 1000}`)
 	provideAsset(t, stub, `{"receiver": "testUser2", "value": 111}`)
+
 	transferUserToUser(t, stub, "testUser2", 500)
 
 	stub.MockCreator("default", testdata.TestUser2Cert)
@@ -355,15 +356,19 @@ func TestBuyAndWithdraw(t *testing.T) {
 	stub := initToken(t)
 	stub.MockCreator("default", testdata.TestUser1Cert)
 	createActors(t, stub, `[{"role": "bank", "name": "testUser"}, {"role": "customer", "name": "testUser"}, {"role": "customer", "name": "testUser2"}, {"role": "shop", "name": "testUser3"}]`)
-	provideAsset(t, stub, `{"receiver": "testUser", "value": 500}`)
-	provideAsset(t, stub, `{"receiver": "testUser2", "value": 1000}`)
-	transferUserToUser(t, stub, "testUser2", 500)
+	provideAsset(t, stub, `{"receiver": "testUser", "value": 400}`)
+	provideAsset(t, stub, `{"receiver": "testUser", "value": 400}`)
+	provideAsset(t, stub, `{"receiver": "testUser2", "value": 200}`)
+	provideAsset(t, stub, `{"receiver": "testUser2", "value": 200}`)
+	provideAsset(t, stub, `{"receiver": "testUser2", "value": 200}`)
+	provideAsset(t, stub, `{"receiver": "testUser2", "value": 200}`)
+	transferUserToUser(t, stub, "testUser2", 800)
 
 	stub.MockCreator("default", testdata.TestUser2Cert)
 	buy(t, stub, "testUser3", 1500)
 
 	userInfo := getCustomerBalance(t, stub)
-	if userInfo.Balance != 0{
+	if userInfo.Balance != 100 {
 		t.Errorf("expected 0 but received %d" , userInfo.Balance)
 		t.FailNow()
 	}
@@ -372,14 +377,14 @@ func TestBuyAndWithdraw(t *testing.T) {
 	withdrawFromUser(t, stub, "testUser2", 1500)
 
 	userInfo = getShopBalance(t, stub)
-	if userInfo.Balance != 1500{
+	if userInfo.Balance != 1500 {
 		t.Errorf("expected 1500 but received %d" , userInfo.Balance)
 		t.FailNow()
 	}
 
 	bankObligations := getBankObligations(t, stub)
-	if len(bankObligations) != 2 {
-		t.Errorf("expected 2 but received %d" , len(bankObligations))
+	if len(bankObligations) != 6 {
+		t.Errorf("expected 6 but received %d" , len(bankObligations))
 		t.FailNow()
 	}
 	sum := uint64(0)
@@ -399,8 +404,8 @@ func TestBuyAndWithdraw(t *testing.T) {
 	}
 
 	assets := getShopClaims(t, stub)
-	if len(assets) != 2 {
-		t.Errorf("expected 2 but received %d" , len(assets))
+	if len(assets) != 6 {
+		t.Errorf("expected 6 but received %d" , len(assets))
 		t.FailNow()
 	}
 
@@ -413,10 +418,10 @@ func TestBuyAndWithdraw(t *testing.T) {
 		t.FailNow()
 	}
 
-	// fmt.Printf("------------------------------------------------------\n")
-	// for key, val := range stub.State {
-	// 	fmt.Printf("%s<->%s\n", key, val)
-	// }
+	 fmt.Printf("------------------------------------------------------\n")
+	 for key, val := range stub.State {
+	 	fmt.Printf("%s<->%s\n", key, val)
+	 }
 
 }
 
