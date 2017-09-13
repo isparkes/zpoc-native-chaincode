@@ -13,7 +13,7 @@ Init args: {'admin':'Admin@peer-org0.blockchain-factory.ch'}
 Function: createActors
 Transaction type: transaction
 Args:
-[{'name': 'shop1', 'role': 'shop'}, {'name': 'customer1', 'role': 'customer'}, {'name': 'customer2', 'role': 'customer'}, {'name': 'bank1', 'role': 'bank'}, {'name': 'bank2', 'role': 'bank'}]
+[{'name': 'shop1', 'role': 'shop'}, {'name': 'customer1', 'role': 'customer'}, {'name': 'customer2', 'role': 'customer'}, {'name': 'lbutler', 'role': 'customer'}, {'name': 'wburns', 'role': 'customer'},{'name': 'bank1', 'role': 'bank'}, {'name': 'bank2', 'role': 'bank'}]
 
 #provide asset to a customer (for test)
 
