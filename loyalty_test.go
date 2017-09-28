@@ -77,10 +77,10 @@ func transferUserToUser(t *testing.T, stub *mock.FullMockStub, receiver string, 
 }
 
 func buy(t *testing.T, stub *mock.FullMockStub, shop string, value int)  {
-	res := stub.MockInvoke("1", util.ToChaincodeArgs("buy", `{"receiver":"` + shop + `", "value":` + strconv.Itoa(value ) + `}`))
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("redeem", `{"receiver":"` + shop + `", "value":` + strconv.Itoa(value ) + `}`))
 
 	if res.Status != shim.OK {
-		t.Errorf("Failed to buy: %s", res.Message)
+		t.Errorf("Failed to redeem: %s", res.Message)
 		t.FailNow()
 	}
 
@@ -364,8 +364,18 @@ func TestBuyAndWithdraw(t *testing.T) {
 	provideAsset(t, stub, `{"receiver": "testUser2", "value": 200}`)
 	transferUserToUser(t, stub, "testUser2", 800)
 
+	fmt.Printf("------------------------------------------------------\n")
+	for key, val := range stub.State {
+		fmt.Printf("%s<->%s\n", key, val)
+	}
+
 	stub.MockCreator("default", testdata.TestUser2Cert)
 	buy(t, stub, "testUser3", 1500)
+
+	fmt.Printf("------------------------------------------------------\n")
+	for key, val := range stub.State {
+		fmt.Printf("%s<->%s\n", key, val)
+	}
 
 	userInfo := getCustomerBalance(t, stub)
 	if userInfo.Balance != 100 {
@@ -374,37 +384,38 @@ func TestBuyAndWithdraw(t *testing.T) {
 	}
 
 	stub.MockCreator("default", testdata.TestUser3Cert)
-	withdrawFromUser(t, stub, "testUser2", 1500)
+	withdrawFromUser(t, stub, "testUser2", 1000)
 
 	userInfo = getShopBalance(t, stub)
-	if userInfo.Balance != 1500 {
-		t.Errorf("expected 1500 but received %d" , userInfo.Balance)
+	if userInfo.Balance != 1000 {
+		t.Errorf("expected 1000 but received %d" , userInfo.Balance)
 		t.FailNow()
 	}
 
 	bankObligations := getBankObligations(t, stub)
-	if len(bankObligations) != 6 {
-		t.Errorf("expected 6 but received %d" , len(bankObligations))
+	if len(bankObligations) != 4 {
+		t.Errorf("expected 4 but received %d" , len(bankObligations))
 		t.FailNow()
 	}
 	sum := uint64(0)
 	for i:=0; i < len(bankObligations); i++ {
 		sum += bankObligations[i].Value
 	}
-	if sum != 1500 {
-		t.Errorf("expected 1500 but received %d" , sum)
+	if sum != 1000 {
+		t.Errorf("expected 1000 but received %d" , sum)
 		t.FailNow()
 	}
 
+
 	stub.MockCreator("default", testdata.TestUser1Cert)
 	userInfo = getBankBalance(t, stub)
-	if userInfo.Balance != 1500{
-		t.Errorf("expected 1500 but received %d" , userInfo.Balance)
+	if userInfo.Balance != 1000{
+		t.Errorf("expected 1000 but received %d" , userInfo.Balance)
 		t.FailNow()
 	}
 
 	assets := getShopClaims(t, stub)
-	if len(assets) != 6 {
+	if len(assets) != 4 {
 		t.Errorf("expected 6 but received %d" , len(assets))
 		t.FailNow()
 	}
@@ -413,8 +424,8 @@ func TestBuyAndWithdraw(t *testing.T) {
 	for i:=0; i < len(assets); i++ {
 		sum += assets[i].Value
 	}
-	if sum != 1500 {
-		t.Errorf("expected 1500 but received %d" , sum)
+	if sum != 1000 {
+		t.Errorf("expected 1000 but received %d" , sum)
 		t.FailNow()
 	}
 

@@ -216,13 +216,13 @@ func (t *LoyaltyChaincode) userToUserTransfer(stub shim.ChaincodeStubInterface, 
 
 func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, userCn string, shopCn string, claim uint64) error {
 
-	allowance, err := t.getAllowance(stub, shopCn, userCn)
+	allowance, err := t.getAllowance(stub, IndexShopAllowances, shopCn, userCn)
 	if err != nil {
 		return err
 	}
 
-	if claim != allowance.Value {
-		return errors.New("Shop claim and user allowance are not equal: " + err.Error())
+	if claim > allowance.Value {
+		return errors.New("Shop claim is bigger then allowed by user!" )
 	}
 
 	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAsset, []string{userCn})
@@ -231,7 +231,7 @@ func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, 
 	}
 	defer iterator.Close()
 
-	restSum := allowance.Value
+	restSum := claim
 
 	for i := 0; iterator.HasNext(); i++ {
 		kv, err := iterator.Next()
@@ -320,10 +320,17 @@ func (t *LoyaltyChaincode) withdrawUserAssets(stub shim.ChaincodeStubInterface, 
 
 
 	// update shop balance
-	err = t.updateUserBalance(stub, IndexShop, shopCn, allowance.Value, false)
+	err = t.updateUserBalance(stub, IndexShop, shopCn, claim, false)
 	if err != nil {
 		return errors.New("Error setting to or from userBalance: " + err.Error())
 	}
 
-	return t.removeAllowance(stub, shopCn, userCn)
+	_, err = t.updateAllowance(stub, IndexShopAllowances, shopCn, userCn, claim, true)
+	if err != nil {
+		return err
+	}
+
+	_, err = t.updateAllowance(stub, IndexCustomerAllowances, userCn, shopCn, claim, true)
+
+	return err
 }

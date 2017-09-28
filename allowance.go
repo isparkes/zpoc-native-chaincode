@@ -6,13 +6,14 @@ import (
 	"errors"
 )
 
-func (t *LoyaltyChaincode) getAllowance(stub shim.ChaincodeStubInterface, shop string, spender string) (*Allowance, error) {
-	key, _ := stub.CreateCompositeKey(IndexShopAllowances, []string{shop, spender})
+func (t *LoyaltyChaincode) getAllowance(stub shim.ChaincodeStubInterface, prefix string, cn1 string, cn2 string) (*Allowance, error) {
+
+	key, _ := stub.CreateCompositeKey(prefix, []string{cn1, cn2})
 	data, err := stub.GetState(key)
 	if err != nil {
 		return nil, errors.New("Error fetching user allowance:" + err.Error())
 	} else if data == nil {
-		return nil, errors.New("No withdraw allowance for user'" + spender + "' found")
+		return nil, errors.New("No allowance for '" + cn1 + "<->" + cn2 + "' found")
 	}
 
 	allowance := Allowance{}
@@ -24,34 +25,31 @@ func (t *LoyaltyChaincode) getAllowance(stub shim.ChaincodeStubInterface, shop s
 	return &allowance, nil
 }
 
-func (t *LoyaltyChaincode) removeAllowance(stub shim.ChaincodeStubInterface, shop string, spender string) error {
-	key, _ := stub.CreateCompositeKey(IndexShopAllowances, []string{shop, spender})
-	return stub.DelState(key)
-}
+func (t *LoyaltyChaincode) updateAllowance(stub shim.ChaincodeStubInterface, prefix string, cn1 string, cn2 string, delta uint64, negSign bool) (*Allowance, error) {
 
-func (t *LoyaltyChaincode) createAllowance(stub shim.ChaincodeStubInterface, shop string, spender string, value uint64) (*Allowance, error) {
+	allowance, _ := t.getAllowance(stub, prefix, cn1, cn2)
 
-	userBalance, err := t.userBalance(stub, IndexCustomer, spender)
-	if err != nil {
-		return nil, err
-	} else if userBalance < value {
-		return nil, errors.New("User has not enough balance to proceed transaction")
-	}
-
-	key, _ := stub.CreateCompositeKey(IndexShopAllowances, []string{shop, spender})
-
-	existingAllowance, err := t.getAllowance(stub, shop, spender)
-	if existingAllowance != nil {
-		if err != nil {
-			return nil, errors.New("Last allowance is still not resolved by the shop: " + err.Error())
+	if allowance != nil {
+		if negSign {
+			if allowance.Value - delta > allowance.Value {
+				return nil, errors.New("value of allowance is to small to proceed transaction")
+			}
+			allowance.Value = allowance.Value - delta
+		} else {
+			allowance.Value += delta
+		}
+	} else {
+		if negSign {
+			return nil, errors.New("value of allowance is to small to proceed transaction")
+		} else {
+			allowance = &Allowance{
+				Buyer: cn2,
+				Value: delta,
+			}
 		}
 	}
 
-	allowance := Allowance{
-		Buyer: spender,
-		Value: value,
-	}
-
+	key, _ := stub.CreateCompositeKey(prefix, []string{cn1, cn2})
 
 	data, err := json.Marshal(allowance)
 	if err != nil {
@@ -63,10 +61,5 @@ func (t *LoyaltyChaincode) createAllowance(stub shim.ChaincodeStubInterface, sho
 		return nil, errors.New("Error creating allowance: " + err.Error())
 	}
 
-	err = t.updateUserBalance(stub, IndexCustomer, spender, value, true)
-	if err != nil {
-		return nil, errors.New("Error creating allowance: " + err.Error())
-	}
-
-	return &allowance, nil
+	return allowance, nil
 }

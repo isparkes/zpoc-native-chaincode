@@ -15,6 +15,7 @@ type LoyaltyChaincode struct {
 const KeySettings = "__settings"
 const IndexCustomer = "cn~customer"
 const IndexCustomerAsset = "cn~customer~asset"
+const IndexCustomerAllowances = "cn~customer~allowances"
 const IndexBank = "cn~bank"
 const IndexBankAsset = "cn~bank~asset"
 const IndexBanksCustomers = "cn~bank~customer"
@@ -80,8 +81,10 @@ func (t *LoyaltyChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response 
 		return t.provideAsset(stub, args)
 	case "getMyCustomerList":
 		return t.getMyCustomerList(stub, args)
-	case "buy":
-		return t.buy(stub, args)
+	case "redeem":
+		return t.redeem(stub, args)
+	case "getCustomersAllowances":
+		return t.getCustomersAllowances(stub, args)
 	case "withdraw":
 		return t.withdraw(stub, args)
 	default:
@@ -457,13 +460,13 @@ func main() {
 	}
 }
 
-func (t *LoyaltyChaincode) buy(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *LoyaltyChaincode) redeem(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	buyer, err := CallerCN(stub)
 	if err != nil {
 		return shim.Error("Error extracting user identity")
 	}
 	if len(args) != 1 {
-		return shim.Error("Buy expected 1 argument")
+		return shim.Error("Redeem expected 1 argument")
 	}
 
 	transfer := Transfer{}
@@ -476,9 +479,26 @@ func (t *LoyaltyChaincode) buy(stub shim.ChaincodeStubInterface, args []string) 
 		return shim.Error("Bad request: shop doesn't exist")
 	}
 
-	allowance, err := t.createAllowance(stub, transfer.Receiver, buyer, transfer.Value)
+	userBalance, err := t.userBalance(stub, IndexCustomer, buyer)
 	if err != nil {
 		return shim.Error(err.Error())
+	} else if userBalance - transfer.Value > userBalance{
+		return shim.Error("User has not enough balance to proceed transaction")
+	}
+
+	allowance, err := t.updateAllowance(stub, IndexCustomerAllowances, buyer, transfer.Receiver, transfer.Value, false)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	allowance, err = t.updateAllowance(stub, IndexShopAllowances, transfer.Receiver, buyer, transfer.Value, false)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	err = t.updateUserBalance(stub, IndexCustomer, buyer, transfer.Value, true)
+	if err != nil {
+		return shim.Error("Error creating allowance: " + err.Error())
 	}
 
 	// send event
@@ -498,7 +518,7 @@ func (t *LoyaltyChaincode) withdraw(stub shim.ChaincodeStubInterface, args []str
 		return shim.Error("Error extracting user identity")
 	}
 	if len(args) != 1 {
-		return shim.Error("Buy expected 1 argument")
+		return shim.Error("withdraw expected 1 argument")
 	}
 
 	allowance := Allowance{}
@@ -517,4 +537,47 @@ func (t *LoyaltyChaincode) withdraw(stub shim.ChaincodeStubInterface, args []str
 	}
 
 	return shim.Success(nil)
+}
+
+func (t *LoyaltyChaincode) getCustomersAllowances(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	caller, err := CallerCN(stub)
+	if err != nil {
+		return shim.Error("Error extracting user identity")
+	}
+
+	iterator, err := stub.GetStateByPartialCompositeKey(IndexCustomerAllowances, []string{caller})
+	if err != nil {
+		return shim.Error("Could not build invoice iterator: " + err.Error())
+	}
+	defer iterator.Close()
+
+	var result []*AllowanceEvent = []*AllowanceEvent{}
+	for i := 0; iterator.HasNext(); i++ {
+		kv, err := iterator.Next()
+
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		allowance := Allowance {}
+		err = json.Unmarshal([]byte(kv.Value), &allowance)
+		if err != nil {
+			return shim.Error("allowance parsing error: " + err.Error())
+		}
+
+		allowanceEvent := AllowanceEvent{
+			Buyer: caller,
+			Shop: allowance.Buyer,
+			Value: allowance.Value,
+		}
+
+		result = append(result, &allowanceEvent)
+	}
+
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		return shim.Error("Could not marshal json: " + err.Error())
+	}
+
+	return shim.Success(resultJson)
 }
