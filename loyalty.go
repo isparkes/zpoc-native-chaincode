@@ -199,9 +199,16 @@ func (t *LoyaltyChaincode) getUserBalance(stub shim.ChaincodeStubInterface, args
 		return shim.Error("Error getting userBalance: " + err.Error())
 	}
 
+	key, _ := stub.CreateCompositeKey(prefix, []string{caller})
+	history, err := t.getHistory(stub, key, UInt64)
+	if err != nil {
+		return shim.Error("Failed to fetch entry history:" + err.Error())
+	}
+
 	balanceJson := User{
 		Name:  caller,
 		Balance: balance,
+		BalanceHistory: history,
 	}
 
 	result, _ := json.Marshal(balanceJson)
@@ -233,6 +240,11 @@ func (t *LoyaltyChaincode) customerBalanceInfo(stub shim.ChaincodeStubInterface,
 			return shim.Error(err.Error())
 		}
 
+		info, err := t.getEntryInfo(stub, kv.Key)
+		if err != nil {
+			return shim.Error("Failed to fetch entry info:" + err.Error())
+		}
+
 		_, parts, err := stub.SplitCompositeKey(kv.Key)
 		spender := parts[1]
 
@@ -246,6 +258,7 @@ func (t *LoyaltyChaincode) customerBalanceInfo(stub shim.ChaincodeStubInterface,
 			Receiver: caller,
 			Sender: spender,
 			Value: asset.Value,
+			Info: *info,
 		}
 
 		result = append(result, &transfer)
@@ -284,11 +297,18 @@ func (t *LoyaltyChaincode) getShopClaims(stub shim.ChaincodeStubInterface, args 
 			return shim.Error(err.Error())
 		}
 
+		info, err := t.getEntryInfo(stub, kv.Key)
+		if err != nil {
+			return shim.Error("Failed to fetch entry history:" + err.Error())
+		}
+
 		asset := Asset {}
 		err = json.Unmarshal([]byte(kv.Value), &asset)
 		if err != nil {
 			return shim.Error("asset parsing error: " + err.Error())
 		}
+
+		asset.Info = *info
 
 		result = append(result, &asset)
 	}
@@ -565,10 +585,16 @@ func (t *LoyaltyChaincode) getCustomersAllowances(stub shim.ChaincodeStubInterfa
 			return shim.Error("allowance parsing error: " + err.Error())
 		}
 
+		info, err := t.getEntryInfo(stub, kv.Key)
+		if err != nil {
+			return shim.Error("Failed to fetch entry history:" + err.Error())
+		}
+
 		allowanceEvent := AllowanceEvent{
 			Buyer: caller,
 			Shop: allowance.Buyer,
 			Value: allowance.Value,
+			Info: *info,
 		}
 
 		result = append(result, &allowanceEvent)

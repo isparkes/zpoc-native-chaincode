@@ -111,6 +111,11 @@ func (t *LoyaltyChaincode) getBanksCustomers(stub shim.ChaincodeStubInterface, b
 			return nil, err
 		}
 
+		history, err := t.getHistory(stub, kv.Key, UInt64)
+		if err != nil {
+			history = nil
+		}
+
 		_, parts, err := stub.SplitCompositeKey(kv.Key)
 		cName := parts[1]
 		cBalance := kv.Value
@@ -118,6 +123,7 @@ func (t *LoyaltyChaincode) getBanksCustomers(stub shim.ChaincodeStubInterface, b
 		customer := User{
 			Name: cName,
 			Balance:  binary.LittleEndian.Uint64(cBalance),
+			BalanceHistory: history,
 		}
 
 		result = append(result, &customer)

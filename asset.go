@@ -51,26 +51,3 @@ func (t *LoyaltyChaincode) storeAsset(stub shim.ChaincodeStubInterface, prefix s
 
 	return &asset, nil
 }
-
-/*func (t *LoyaltyChaincode) countExistingAssetsfromSameSource(stub shim.ChaincodeStubInterface, prefix string, owner string, spender string, ) (uint64, error)  {
-
-
-	/*iterator, err := stub.GetStateByPartialCompositeKey(prefix, []string{owner, spender})
-	if err != nil {
-		return 0, err
-	}
-	defer iterator.Close()
-	var num = uint64(0)
-
-	for i := 0; iterator.HasNext(); i++ {
-		_ , err = iterator.Next()
-		num++
-	}
-
-	if err != nil {
-		return 0, err
-	}
-	var id = uint64Random()
-
-	return id, nil
-}*/

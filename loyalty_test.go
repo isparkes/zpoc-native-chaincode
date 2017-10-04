@@ -223,6 +223,24 @@ func getBankObligations(t *testing.T, stub *mock.FullMockStub) []BankObligation 
 	return bankObligation
 }
 
+func getCustomerAllowances(t *testing.T, stub *mock.FullMockStub) []AllowanceEvent {
+	res := stub.MockInvoke("1", util.ToChaincodeArgs("getCustomersAllowances"))
+
+	if res.Status != shim.OK {
+		t.Errorf("Failed to get getCustomersAllowances: %s", res.Message)
+		t.FailNow()
+	}
+
+	var customerAllowances = []AllowanceEvent{}
+	err := json.Unmarshal(res.Payload, &customerAllowances)
+	if err != nil {
+		t.Errorf("Failed to parse AllowanceEvent: %s", err.Error())
+		t.FailNow()
+	}
+
+	return customerAllowances
+}
+
 
 // ---------------------------------------------------------------------------------------------------------------------
 // TESTS
@@ -371,6 +389,11 @@ func TestBuyAndWithdraw(t *testing.T) {
 
 	stub.MockCreator("default", testdata.TestUser2Cert)
 	buy(t, stub, "testUser3", 1500)
+	allowances := getCustomerAllowances(t, stub)
+	if len(allowances) != 1 {
+		t.Errorf("expected 1 but received %d" , len(allowances))
+		t.FailNow()
+	}
 
 	fmt.Printf("------------------------------------------------------\n")
 	for key, val := range stub.State {
